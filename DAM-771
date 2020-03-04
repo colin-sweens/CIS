@@ -1,5 +1,28 @@
------ Combined 
-WITH Pt_Line_Items AS
+***For example 
+-- look at patient id = 50486779 using the query {{{SELECT diag.diagnosis_cd, count(cl.claim_id)
+FROM enriched_iguana_staging.claim_diagnosis diag
+INNER JOIN enriched_iguana_staging.claim_revenue_line cl
+on diag.claim_id = cl.claim_id
+WHERE cl.patient_id = 50486779
+AND EXTRACT(YEAR FROM cl.claim_end_dt) IN (2017,2018,2019)
+AND cl.hcpcs_cd IN('J9145')
+GROUP By 1 ORDER by 2 DESC;}}}}
+
+
+________________MAIN QUERY_______________________
+WITH 
+Diag_Table AS 
+(SELECT hdr.patient_id, EXTRACT(YEAR FROM claim_end_dt) AS YEAR, count(distinct hdr.claim_id) as n_c9000_claims
+FROM 
+enriched_iguana_staging.claim_header hdr
+INNER JOIN enriched_iguana_staging.claim_diagnosis diag
+on diag.claim_id = hdr.claim_id
+WHERE EXTRACT(YEAR FROM claim_end_dt) IN (2017,2018,2019)
+ AND diag.diagnosis_cd IN('C9000')
+GROUP by 1,2),
+
+-- Look at the Claim_line and Claim_Revenue_Line for the relevant HCPCS Codes. Get count of claims by patient by year
+Pt_Line_Items AS
 (
 SELECT patient_id, EXTRACT(YEAR FROM claim_end_dt) as YEAR, count(distinct claim_id) as n_line_claims
 from
@@ -15,6 +38,7 @@ where lne.hcpcs_cd = 'J9145'
 )
 WHERE EXTRACT(YEAR FROM claim_end_dt) IN(2017,2018,2019)
 GROUP by 1,2),
+-- Look at the RX Data for instances where Dara is listed with its NDC code. Get count of claims by patient by year
 Pt_Rx_Items AS
 (
 SELECT patient_id, EXTRACT(YEAR FROM fill_dt) AS YEAR, count(distinct claim_id) as n_rx_claims
@@ -22,42 +46,10 @@ FROM enriched_iguana_staging.rx_claim
 WHERE ndc_cd IN('57894050205','57894050220')
 AND EXTRACT(YEAR FROM fill_dt) in(2017,2018,2019)
 GROUP by 1,2)
-SELECT COALESCE(ptl.patient_id, ptrx.patient_id), COALESCE(ptl.YEAR,ptrx.YEAR), ptl.n_line_claims, ptrx.n_rx_claims, (COALESCE(ptl.n_line_claims,0) + COALESCE(ptrx.n_rx_claims,0)) AS Total_Combined_Rx_and_Claim_Line_Claims
+SELECT COALESCE(ptl.patient_id, ptrx.patient_id,dx.year), COALESCE(ptl.YEAR,ptrx.YEAR,dx.year), ptl.n_line_claims, ptrx.n_rx_claims,dx.n_c9000_claims, (COALESCE(ptl.n_line_claims,0) + COALESCE(ptrx.n_rx_claims,0)) AS Total_Combined_Rx_and_Claim_Line_Claims
 FROM
 Pt_Line_Items ptl
 FULL OUTER JOIN 
-Pt_Rx_Items ptrx
-ON ptl.patient_id = ptrx.patient_id 
-and ptl.year = ptrx.year;
-
--- Iguana / Part D  Rx
-
-SELECT ndc_cd, EXTRACT(YEAR FROM fill_dt) as YEAR, count(distinct prescriber_npi) as n_hcp, count(distinct patient_id) as n_pts, count(distinct claim_id) as n_claims
-FROM enriched_iguana_staging.rx_claim 
-WHERE ndc_cd IN('57894050205','57894050220')
-AND EXTRACT(YEAR FROM fill_Dt) IN(2017,2018,2019)
-GROUP by 1,2
-ORDER by 2 ASC;
-
-
-____________________________
-
-Claim_Lines 
-
-SELECT hcpcs_cd, EXTRACT(YEAR FROM service_start_dt) as YEAR, count(distinct rendering_provider_npi) as n_hcp, count(distinct organization_npi) n_org, count(distinct patient_id) as n_pts, count(distinct claim_id) as n_claims
-FROM enriched_iguana_staging.claim_line
-WHERE hcpcs_cd IN('J9145')
-AND EXTRACT(YEAR FROM service_start_dt) IN(2017,2018,2019)
-GROUP by 1,2
-ORDER by 2 ASC;
-
-
-SELECT hcpcs_cd, 
-CASE WHEN diagnosis_cd IN ('C9000') THEN '1L' ELSE '2L+' END AS Pt_Line_of_Therapy
-,EXTRACT(YEAR FROM service_start_dt) as YEAR, count(distinct rendering_provider_npi) as n_hcp, count(distinct organization_npi) n_org, count(distinct patient_id) as n_pts, count(distinct claim_id) as n_claims
-FROM enriched_iguana_staging.claim_line
-WHERE hcpcs_cd IN('J9145')
-AND EXTRACT(YEAR FROM service_start_dt) IN(2017,2018,2019)
--- AND diagnosis_cd IN ('C9000')
-GROUP by 1,2,3
-ORDER by 2 ASC, 3 ASC;
+Pt_Rx_Items ptrx ON ptl.patient_id = ptrx.patient_id and ptl.year = ptrx.year
+LEFT JOIN Diag_Table Dx
+ON ptl.patient_id = dx.patient_id and ptl.year = dx.year;
