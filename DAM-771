@@ -1,3 +1,35 @@
+----- Combined 
+WITH Pt_Line_Items AS
+(
+SELECT patient_id, EXTRACT(YEAR FROM claim_end_dt) as YEAR, count(distinct claim_id) as n_line_claims
+from
+(SELECT hdr.patient_id, hdr.claim_id,hdr.claim_end_Dt
+FROM enriched_iguana_staging.claim_header HDR
+INNER JOIN enriched_iguana_staging.claim_revenue_line rev on hdr.claim_id = rev.claim_id
+where rev.hcpcs_cd = 'J9145'
+union ALL
+SELECT hdr.patient_id, hdr.claim_id,hdr.claim_end_dt
+FROM enriched_iguana_staging.claim_header HDR
+INNER JOIN enriched_iguana_staging.claim_line lne on hdr.claim_id = lne.claim_id
+where lne.hcpcs_cd = 'J9145'
+)
+WHERE EXTRACT(YEAR FROM claim_end_dt) IN(2017,2018,2019)
+GROUP by 1,2),
+Pt_Rx_Items AS
+(
+SELECT patient_id, EXTRACT(YEAR FROM fill_dt) AS YEAR, count(distinct claim_id) as n_rx_claims
+FROM enriched_iguana_staging.rx_claim
+WHERE ndc_cd IN('57894050205','57894050220')
+AND EXTRACT(YEAR FROM fill_dt) in(2017,2018,2019)
+GROUP by 1,2)
+SELECT COALESCE(ptl.patient_id, ptrx.patient_id), COALESCE(ptl.YEAR,ptrx.YEAR), ptl.n_line_claims, ptrx.n_rx_claims, (COALESCE(ptl.n_line_claims,0) + COALESCE(ptrx.n_rx_claims,0)) AS Total_Combined_Rx_and_Claim_Line_Claims
+FROM
+Pt_Line_Items ptl
+FULL OUTER JOIN 
+Pt_Rx_Items ptrx
+ON ptl.patient_id = ptrx.patient_id 
+and ptl.year = ptrx.year;
+
 -- Iguana / Part D  Rx
 
 SELECT ndc_cd, EXTRACT(YEAR FROM fill_dt) as YEAR, count(distinct prescriber_npi) as n_hcp, count(distinct patient_id) as n_pts, count(distinct claim_id) as n_claims
