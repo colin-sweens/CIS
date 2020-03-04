@@ -1,0 +1,31 @@
+-- Iguana / Part D  Rx
+
+SELECT ndc_cd, EXTRACT(YEAR FROM fill_dt) as YEAR, count(distinct prescriber_npi) as n_hcp, count(distinct patient_id) as n_pts, count(distinct claim_id) as n_claims
+FROM enriched_iguana_staging.rx_claim 
+WHERE ndc_cd IN('57894050205','57894050220')
+AND EXTRACT(YEAR FROM fill_Dt) IN(2017,2018,2019)
+GROUP by 1,2
+ORDER by 2 ASC;
+
+
+____________________________
+
+Claim_Lines 
+
+SELECT hcpcs_cd, EXTRACT(YEAR FROM service_start_dt) as YEAR, count(distinct rendering_provider_npi) as n_hcp, count(distinct organization_npi) n_org, count(distinct patient_id) as n_pts, count(distinct claim_id) as n_claims
+FROM enriched_iguana_staging.claim_line
+WHERE hcpcs_cd IN('J9145')
+AND EXTRACT(YEAR FROM service_start_dt) IN(2017,2018,2019)
+GROUP by 1,2
+ORDER by 2 ASC;
+
+
+SELECT hcpcs_cd, 
+CASE WHEN diagnosis_cd IN ('C9000') THEN '1L' ELSE '2L+' END AS Pt_Line_of_Therapy
+,EXTRACT(YEAR FROM service_start_dt) as YEAR, count(distinct rendering_provider_npi) as n_hcp, count(distinct organization_npi) n_org, count(distinct patient_id) as n_pts, count(distinct claim_id) as n_claims
+FROM enriched_iguana_staging.claim_line
+WHERE hcpcs_cd IN('J9145')
+AND EXTRACT(YEAR FROM service_start_dt) IN(2017,2018,2019)
+-- AND diagnosis_cd IN ('C9000')
+GROUP by 1,2,3
+ORDER by 2 ASC, 3 ASC;
