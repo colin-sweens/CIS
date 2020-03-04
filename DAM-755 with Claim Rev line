@@ -94,7 +94,6 @@ WHERE DMD.row_id = 1
         ***MEDICARE BELOW....change Gender code to 1*************
         
         
-        
         SELECT CASE 
 WHEN Max_RCode_Date IS NOT NULL AND (Max_ZCode_Date IS NOT NULL OR MaxEcode_Date IS NOT NULL) THEN 1 
 ELSE 0 END as Ambulatory_Status, count(distinct patient_id)
@@ -147,29 +146,29 @@ FROM (
   -- Create common table to Identify patients with a documented E-code, and pull the most recent date of E-code diagnosis
 E_labeled_claims AS 
     (SELECT patient_id,
-         service_start_dt,
+         claim_end_dt,
          ROW_NUMBER() OVER(Partition by patient_id
-    ORDER BY  service_start_dt DESC) AS row_id
+    ORDER BY  claim_end_dt DESC) AS row_id
     FROM enriched_qe_qa.claim_line
     WHERE hcpcs_cd IN('E0950', 'E0953', 'E0954', 'E0955', 'E0956', 'E0957', 'E0958', 'E0959', 'E0960', 'E0961', 'E0966', 'E0967', 'E0968', 'E0969', 'E0970', 'E0971', 'E0973', 'E0974', 'E0978', 'E0980', 'E0981', 'E0982', 'E0983', 'E0984', 'E0985', 'E0986', 'E0988', 'E0990', 'E0992', 'E0994', 'E0995', 'E1002', 'E1003', 'E1004', 'E1005', 'E1006', 'E1007', 'E1008', 'E1009', 'E1010', 'E1011', 'E1012', 'E1014', 'E1015', 'E1016', 'E1017', 'E1018', 'E1020', 'E1028', 'E1029', 'E1030', 'E1031', 'E1035', 'E1036', 'E1037', 'E1038', 'E1039', 'E1050', 'E1060', 'E1070', 'E1083', 'E1084', 'E1085', 'E1086', 'E1087', 'E1088', 'E1089', 'E1090', 'E1092', 'E1093', 'E1100', 'E1110', 'E1130', 'E1140', 'E1150', 'E1160', 'E1161', 'E1170', 'E1171', 'E1172', 'E1180', 'E1190', 'E1195', 'E1200', 'E1220', 'E1221', 'E1222', 'E1223', 'E1224', 'E1225', 'E1226', 'E1227', 'E1228', 'E1229', 'E1230', 'E1231', 'E1232', 'E1233', 'E1234', 'E1235', 'E1236', 'E1237', 'E1238', 'E1239', 'E1240', 'E1250', 'E1260', 'E1270', 'E1280', 'E1285', 'E1290', 'E1295', 'E1296', 'E1297', 'E1298', 'E2201', 'E2202', 'E2203', 'E2204', 'E2205', 'E2206', 'E2207', 'E2208', 'E2209', 'E2210', 'E2211', 'E2212', 'E2213', 'E2214', 'E2215', 'E2216', 'E2217', 'E2218', 'E2219', 'E2220', 'E2221', 'E2222', 'E2224', 'E2225', 'E2226', 'E2227', 'E2228', 'E2230', 'E2231', 'E2291', 'E2292', 'E2293', 'E2294', 'E2295', 'E2300', 'E2301', 'E2310', 'E2311', 'E2312', 'E2313', 'E2321', 'E2322', 'E2323', 'E2324', 'E2325', 'E2326', 'E2327', 'E2328', 'E2329', 'E2330', 'E2331', 'E2340', 'E2341', 'E2342', 'E2343', 'E2351', 'E2358', 'E2359', 'E2360', 'E2361', 'E2362', 'E2363', 'E2364', 'E2365', 'E2366', 'E2367', 'E2368', 'E2369', 'E2370', 'E2371', 'E2372', 'E2373', 'E2374', 'E2375', 'E2376', 'E2377', 'E2378', 'E2381', 'E2382', 'E2383', 'E2384', 'E2385', 'E2386', 'E2387', 'E2388', 'E2389', 'E2390', 'E2391', 'E2392', 'E2394', 'E2395', 'E2396', 'E2397', 'E2398', 'E2601', 'E2602', 'E2603', 'E2604', 'E2605', 'E2606', 'E2607', 'E2608', 'E2609', 'E2610', 'E2611', 'E2612', 'E2613', 'E2614', 'E2615', 'E2616', 'E2617', 'E2619', 'E2620', 'E2621', 'E2622', 'E2623', 'E2624', 'E2625', 'E2626', 'E2627', 'E2628', 'E2629', 'E2630', 'E2631', 'E2632', 'E2633')
-            AND service_start_dt
+            AND claim_end_dt
         BETWEEN date('2018-10-01') AND date('2019-07-01')),
   E_Labeled_claim_rev AS
   (SELECT patient_id,
-         claim_revenue_center_date_of_service_dt,
+         claim_end_dt,
          ROW_NUMBER() OVER(Partition by patient_id
-    ORDER BY  claim_revenue_center_date_of_service_dt DESC) AS row_id
+    ORDER BY  claim_end_dt DESC) AS row_id
     FROM enriched_qe_qa.claim_revenue_line
     WHERE hcpcs_cd IN('E0950', 'E0953', 'E0954', 'E0955', 'E0956', 'E0957', 'E0958', 'E0959', 'E0960', 'E0961', 'E0966', 'E0967', 'E0968', 'E0969', 'E0970', 'E0971', 'E0973', 'E0974', 'E0978', 'E0980', 'E0981', 'E0982', 'E0983', 'E0984', 'E0985', 'E0986', 'E0988', 'E0990', 'E0992', 'E0994', 'E0995', 'E1002', 'E1003', 'E1004', 'E1005', 'E1006', 'E1007', 'E1008', 'E1009', 'E1010', 'E1011', 'E1012', 'E1014', 'E1015', 'E1016', 'E1017', 'E1018', 'E1020', 'E1028', 'E1029', 'E1030', 'E1031', 'E1035', 'E1036', 'E1037', 'E1038', 'E1039', 'E1050', 'E1060', 'E1070', 'E1083', 'E1084', 'E1085', 'E1086', 'E1087', 'E1088', 'E1089', 'E1090', 'E1092', 'E1093', 'E1100', 'E1110', 'E1130', 'E1140', 'E1150', 'E1160', 'E1161', 'E1170', 'E1171', 'E1172', 'E1180', 'E1190', 'E1195', 'E1200', 'E1220', 'E1221', 'E1222', 'E1223', 'E1224', 'E1225', 'E1226', 'E1227', 'E1228', 'E1229', 'E1230', 'E1231', 'E1232', 'E1233', 'E1234', 'E1235', 'E1236', 'E1237', 'E1238', 'E1239', 'E1240', 'E1250', 'E1260', 'E1270', 'E1280', 'E1285', 'E1290', 'E1295', 'E1296', 'E1297', 'E1298', 'E2201', 'E2202', 'E2203', 'E2204', 'E2205', 'E2206', 'E2207', 'E2208', 'E2209', 'E2210', 'E2211', 'E2212', 'E2213', 'E2214', 'E2215', 'E2216', 'E2217', 'E2218', 'E2219', 'E2220', 'E2221', 'E2222', 'E2224', 'E2225', 'E2226', 'E2227', 'E2228', 'E2230', 'E2231', 'E2291', 'E2292', 'E2293', 'E2294', 'E2295', 'E2300', 'E2301', 'E2310', 'E2311', 'E2312', 'E2313', 'E2321', 'E2322', 'E2323', 'E2324', 'E2325', 'E2326', 'E2327', 'E2328', 'E2329', 'E2330', 'E2331', 'E2340', 'E2341', 'E2342', 'E2343', 'E2351', 'E2358', 'E2359', 'E2360', 'E2361', 'E2362', 'E2363', 'E2364', 'E2365', 'E2366', 'E2367', 'E2368', 'E2369', 'E2370', 'E2371', 'E2372', 'E2373', 'E2374', 'E2375', 'E2376', 'E2377', 'E2378', 'E2381', 'E2382', 'E2383', 'E2384', 'E2385', 'E2386', 'E2387', 'E2388', 'E2389', 'E2390', 'E2391', 'E2392', 'E2394', 'E2395', 'E2396', 'E2397', 'E2398', 'E2601', 'E2602', 'E2603', 'E2604', 'E2605', 'E2606', 'E2607', 'E2608', 'E2609', 'E2610', 'E2611', 'E2612', 'E2613', 'E2614', 'E2615', 'E2616', 'E2617', 'E2619', 'E2620', 'E2621', 'E2622', 'E2623', 'E2624', 'E2625', 'E2626', 'E2627', 'E2628', 'E2629', 'E2630', 'E2631', 'E2632', 'E2633')
-            AND claim_revenue_center_date_of_service_dt
+            AND claim_end_dt
         BETWEEN date('2018-10-01') AND date('2019-07-01'))
   -- Join the DMD, R, Z, and E tables. Left joining keeps all DMD patients regardless of if they have any R,Z,E codes. 
 SELECT DMD.patient_id,DMD.gender_cd,
         DMD.claim_start_dt AS Min_DMD_Diag_Date,
         R.claim_start_dt AS Max_RCode_Date,
         Z.claim_start_dt AS Max_ZCode_Date,
-        E.service_start_dt AS MaxECode_Date,
-        Ecr.claim_revenue_center_date_of_service_dt as Max_E_Rev_Code_Date
+        E.claim_end_dt AS MaxECode_Date,
+        Ecr.claim_end_dt as Max_E_Rev_Code_Date
 FROM DMD_labeled_claims DMD
 LEFT JOIN Rcode_labeled_claims R
    ON DMD.patient_id = R.patient_id
@@ -187,5 +186,6 @@ WHERE DMD.row_id = 1
   
   ) Group by 1;
         ;
+        
         
         
