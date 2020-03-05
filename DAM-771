@@ -9,7 +9,7 @@ AND cl.hcpcs_cd IN('J9145')
 GROUP By 1 ORDER by 2 DESC;}}}}
 
 
-________________MAIN QUERY_______________________
+________________MAIN QUERY____For Patients___________________
 
 -- Look at the Claim_line and Claim_Revenue_Line for the relevant HCPCS Codes. Get count of claims by patient by year
 WITH 
@@ -70,3 +70,76 @@ LEFT JOIN L1_Diag_Table Dx
 ON ptl.patient_id = dx.patient_id and ptl.year = dx.year
 LEFT JOIN All_MM_Diag_Table MMDx
 ON ptl.patient_id = MMDx.patient_id and ptl.year = MMDx.year;
+
+
+
+
+
+
+
+_____________________________________********MAIN QUERY FOR PHYSICIANS********__________________________
+**To run in Refshift
+
+--- Create a list of NPIs with their number of patients and number of claim_lines with Dara included 
+WITH 
+PT_Line_Items AS(
+SELECT npi, enumeration_type,EXTRACT(YEAR FROM claim_end_dt) as YEAR, count(distinct patient_id) as n_line_patients,count(distinct claim_id) as n_line_claims
+from
+(SELECT ca.npi,
+ prov.enumeration_type,
+ rev.patient_id,rev.claim_end_dt,rev.claim_id
+FROM public.enriched_iguana_claim_revenue_line_20200205 rev
+INNER JOIN public.enriched_iguana_claim_affiliate_20200205 ca on rev.claim_id = ca.claim_id
+INNER JOIN public.clarify_provider prov on ca.npi = prov.npi
+where rev.hcpcs_cd = 'J9145' 
+ AND
+ EXTRACT(YEAR FROM rev.claim_end_dt) IN(2017,2018,2019) 
+union ALL
+SELECT ca.npi,
+  prov.enumeration_type,
+ lne.patient_id,lne.claim_end_dt, lne.claim_id
+FROM public.enriched_iguana_claim_line_20200205 lne 
+INNER JOIN public.enriched_iguana_claim_affiliate_20200205 ca on lne.claim_id = ca.claim_id
+INNER JOIN public.clarify_provider prov on ca.npi = prov.npi
+where lne.hcpcs_cd = 'J9145'
+ AND
+ EXTRACT(YEAR FROM lne.claim_end_dt) IN(2017,2018,2019) 
+)
+GROUP by 1,2,3),
+--- providers with a C9000 diagnosis 
+L1_Diag_Table AS 
+(
+(SELECT ca.npi, EXTRACT(YEAR FROM claim_end_dt) AS YEAR, count(distinct hdr.claim_id) as n_c9000_claims
+FROM 
+public.enriched_iguana_claim_header_20200205 hdr
+INNER JOIN public.enriched_iguana_claim_diagnosis_20200205 diag
+on diag.claim_id = hdr.claim_id
+INNER JOIN public.enriched_iguana_claim_affiliate_20200205 ca 
+on hdr.claim_id = ca.claim_id
+WHERE EXTRACT(YEAR FROM hdr.claim_end_dt) IN (2017,2018,2019)
+ AND diag.diagnosis_cd IN('C9000')
+GROUP by 1,2)
+),
+--- providers with a difference MM diagnosis
+All_MM_Diag_Table AS 
+(SELECT ca.npi, EXTRACT(YEAR FROM claim_end_dt) AS YEAR, count(distinct hdr.claim_id) as n_MM_claims
+FROM 
+public.enriched_iguana_claim_header_20200205 hdr
+INNER JOIN public.enriched_iguana_claim_diagnosis_20200205 diag
+on diag.claim_id = hdr.claim_id
+INNER JOIN public.enriched_iguana_claim_affiliate_20200205 ca 
+on hdr.claim_id = ca.claim_id
+WHERE EXTRACT(YEAR FROM hdr.claim_end_dt) IN (2017,2018,2019)
+ AND diag.diagnosis_cd LIKE 'C90%'
+GROUP by 1,2)
+-- JOIN TABLES
+SELECT COALESCE(ptl.npi,dx.npi,MMDx.npi),ptl.enumeration_type, COALESCE(ptl.YEAR,dx.year, MMDx.year), ptl.n_line_claims,ptl.n_line_patients, dx.n_c9000_claims,MMDx.n_MM_claims
+FROM
+Pt_Line_Items ptl
+-- FULL OUTER JOIN 
+-- Pt_Rx_Items ptrx ON ptl.patient_id = ptrx.patient_id and ptl.year = ptrx.year
+LEFT JOIN L1_Diag_Table Dx
+ON ptl.npi = dx.npi and ptl.year = dx.year
+LEFT JOIN All_MM_Diag_Table MMDx
+ON ptl.npi = MMDx.npi and ptl.year = MMDx.year
+;
