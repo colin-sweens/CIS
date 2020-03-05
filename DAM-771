@@ -10,16 +10,6 @@ GROUP By 1 ORDER by 2 DESC;}}}}
 
 
 ________________MAIN QUERY_______________________
-WITH 
-Diag_Table AS 
-(SELECT hdr.patient_id, EXTRACT(YEAR FROM claim_end_dt) AS YEAR, count(distinct hdr.claim_id) as n_c9000_claims
-FROM 
-enriched_iguana_staging.claim_header hdr
-INNER JOIN enriched_iguana_staging.claim_diagnosis diag
-on diag.claim_id = hdr.claim_id
-WHERE EXTRACT(YEAR FROM claim_end_dt) IN (2017,2018,2019)
- AND diag.diagnosis_cd IN('C9000')
-GROUP by 1,2),
 
 -- Look at the Claim_line and Claim_Revenue_Line for the relevant HCPCS Codes. Get count of claims by patient by year
 WITH 
