@@ -143,3 +143,30 @@ ON ptl.npi = dx.npi and ptl.year = dx.year
 LEFT JOIN All_MM_Diag_Table MMDx
 ON ptl.npi = MMDx.npi and ptl.year = MMDx.year
 ;
+
+
+
+___________________________**********MAIN QUERY FOR PLACE OF SERVICE*******************
+
+*IN REDSHIFT
+
+
+SELECT claim_category,EXTRACT(YEAR FROM claim_end_dt) as YEAR, count(distinct patient_id) n_pts,count(distinct claim_id) n_claims
+FROM
+(
+SELECT hdr.claim_category,hdr.claim_category_cd,hdr.claim_category_subtype,rev.claim_revenue_center_cd,rev.patient_id,rev.claim_end_dt,rev.claim_id
+FROM public.enriched_iguana_claim_revenue_line_20200205 rev
+INNER JOIN public.enriched_iguana_claim_header_20200205 hdr on rev.claim_id = hdr.claim_id
+where rev.hcpcs_cd = 'J9145' 
+ AND
+ EXTRACT(YEAR FROM rev.claim_end_dt) IN(2017,2018,2019)
+union ALL
+SELECT hdr.claim_category,hdr.claim_category_cd,hdr.claim_category_subtype,lne.claim_revenue_center_cd, lne.patient_id,lne.claim_end_dt,lne.claim_id
+FROM public.enriched_iguana_claim_line_20200205 lne 
+INNER JOIN public.enriched_iguana_claim_header_20200205 hdr on lne.claim_id = hdr.claim_id
+where lne.hcpcs_cd = 'J9145'
+ AND
+ EXTRACT(YEAR FROM lne.claim_end_dt) IN(2017,2018,2019) 
+)
+GROUP by 1,2;
+
