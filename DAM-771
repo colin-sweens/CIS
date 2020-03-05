@@ -80,13 +80,12 @@ ON ptl.patient_id = MMDx.patient_id and ptl.year = MMDx.year;
 _____________________________________********MAIN QUERY FOR PHYSICIANS********__________________________
 **To run in Refshift
 
---- Create a list of NPIs with their number of patients and number of claim_lines with Dara included 
-WITH 
+-WITH 
 PT_Line_Items AS(
-SELECT npi, enumeration_type,EXTRACT(YEAR FROM claim_end_dt) as YEAR, count(distinct patient_id) as n_line_patients,count(distinct claim_id) as n_line_claims
+SELECT npi, enumeration_type,attributed_name,specialty_clean,EXTRACT(YEAR FROM claim_end_dt) as YEAR, count(distinct patient_id) as n_line_patients,count(distinct claim_id) as n_line_claims
 from
 (SELECT ca.npi,
- prov.enumeration_type,
+ prov.enumeration_type,prov.attributed_name,prov.specialty_clean,
  rev.patient_id,rev.claim_end_dt,rev.claim_id
 FROM public.enriched_iguana_claim_revenue_line_20200205 rev
 INNER JOIN public.enriched_iguana_claim_affiliate_20200205 ca on rev.claim_id = ca.claim_id
@@ -96,7 +95,7 @@ where rev.hcpcs_cd = 'J9145'
  EXTRACT(YEAR FROM rev.claim_end_dt) IN(2017,2018,2019) 
 union ALL
 SELECT ca.npi,
-  prov.enumeration_type,
+  prov.enumeration_type,prov.attributed_name,prov.specialty_clean,
  lne.patient_id,lne.claim_end_dt, lne.claim_id
 FROM public.enriched_iguana_claim_line_20200205 lne 
 INNER JOIN public.enriched_iguana_claim_affiliate_20200205 ca on lne.claim_id = ca.claim_id
@@ -105,7 +104,7 @@ where lne.hcpcs_cd = 'J9145'
  AND
  EXTRACT(YEAR FROM lne.claim_end_dt) IN(2017,2018,2019) 
 )
-GROUP by 1,2,3),
+GROUP by 1,2,3,4,5),
 --- providers with a C9000 diagnosis 
 L1_Diag_Table AS 
 (
@@ -133,7 +132,7 @@ WHERE EXTRACT(YEAR FROM hdr.claim_end_dt) IN (2017,2018,2019)
  AND diag.diagnosis_cd LIKE 'C90%'
 GROUP by 1,2)
 -- JOIN TABLES
-SELECT COALESCE(ptl.npi,dx.npi,MMDx.npi),ptl.enumeration_type, COALESCE(ptl.YEAR,dx.year, MMDx.year), ptl.n_line_claims,ptl.n_line_patients, dx.n_c9000_claims,MMDx.n_MM_claims
+SELECT COALESCE(ptl.npi,dx.npi,MMDx.npi)as NPI,ptl.enumeration_type, ptl.attributed_name,ptl.specialty_clean,COALESCE(ptl.YEAR,dx.year, MMDx.year)as "YEAR", ptl.n_line_claims,ptl.n_line_patients, dx.n_c9000_claims,MMDx.n_MM_claims
 FROM
 Pt_Line_Items ptl
 -- FULL OUTER JOIN 
@@ -142,8 +141,6 @@ LEFT JOIN L1_Diag_Table Dx
 ON ptl.npi = dx.npi and ptl.year = dx.year
 LEFT JOIN All_MM_Diag_Table MMDx
 ON ptl.npi = MMDx.npi and ptl.year = MMDx.year
-;
-
 
 
 ___________________________**********MAIN QUERY FOR PLACE OF SERVICE*******************
