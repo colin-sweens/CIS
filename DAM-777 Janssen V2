@@ -1,0 +1,107 @@
+WITH 
+L1_Diag_Table AS 
+(SELECT hdr.patient_id, EXTRACT(YEAR FROM claim_end_dt) AS YEAR, count(distinct hdr.claim_id) as n_c9000_claims
+FROM 
+enriched_qe_staging.claim_header hdr
+INNER JOIN enriched_qe_staging.claim_diagnosis diag
+on diag.claim_id = hdr.claim_id
+WHERE EXTRACT(YEAR FROM claim_end_dt) IN (2017,2018,2019)
+ AND diag.diagnosis_cd IN('C9000')
+GROUP by 1,2),
+
+First_1L_MM_Diag AS(
+  SELECT patient_id,claim_end_dt as First_MM_Diag
+  FROM(SELECT hdr.patient_id,hdr.claim_end_dt,ROW_NUMBER()OVER(Partition by hdr.patient_id order by hdr.Claim_end_dt ASC) as row_index
+       FROM enriched_qe_staging.claim_header hdr
+       INNER JOIN enriched_qe_staging.claim_diagnosis diag 
+       on diag.claim_id = hdr.claim_id 
+       WHERE EXTRACT(YEAR FROM claim_end_dt) IN (2017,2018,2019) AND diag.diagnosis_cd IN('C9000'))
+  Where row_index = 1),
+  
+
+First_Dara_Usage AS(
+  SELECT patient_id, claim_end_dt as First_dara
+FROM
+(
+SELECT patient_id, claim_end_dt, ROW_NUMBER() OVER (Partition by patient_id ORDER by claim_end_dt ASC) as claim_index
+from
+(SELECT hdr.patient_id, hdr.claim_id,hdr.claim_end_Dt
+FROM enriched_qe_staging.claim_header HDR
+INNER JOIN enriched_qe_staging.claim_revenue_line rev on hdr.claim_id = rev.claim_id
+where rev.hcpcs_cd = 'J9145' AND EXTRACT(YEAR FROM hdr.claim_end_dt) IN(2017,2018,2019)
+union ALL
+SELECT hdr.patient_id, hdr.claim_id,hdr.claim_end_dt
+FROM enriched_qe_staging.claim_header HDR
+INNER JOIN enriched_qe_staging.claim_line lne on hdr.claim_id = lne.claim_id
+where lne.hcpcs_cd = 'J9145' AND EXTRACT(YEAR FROM hdr.claim_end_dt) IN(2017,2018,2019)
+))WHERE claim_index = 1
+ ),
+
+All_MM_Diag_Table AS 
+(SELECT hdr.patient_id, EXTRACT(YEAR FROM claim_end_dt) AS YEAR, count(distinct hdr.claim_id) as n_MM_claims
+FROM 
+enriched_qe_staging.claim_header hdr
+INNER JOIN enriched_qe_staging.claim_diagnosis diag
+on diag.claim_id = hdr.claim_id
+WHERE EXTRACT(YEAR FROM claim_end_dt) IN (2017,2018,2019)
+ AND diag.diagnosis_cd in('C9001','C9002')
+GROUP by 1,2),
+
+All_Diag_Table AS 
+(SELECT hdr.patient_id, EXTRACT(YEAR FROM claim_end_dt) AS YEAR, count(distinct hdr.claim_id) as n_90123_claims
+FROM 
+enriched_qe_staging.claim_header hdr
+INNER JOIN enriched_qe_staging.claim_diagnosis diag
+on diag.claim_id = hdr.claim_id
+WHERE EXTRACT(YEAR FROM claim_end_dt) IN (2017,2018,2019)
+ AND diag.diagnosis_cd LIKE'C901%' or diag.diagnosis_cd LIKE'C902%' OR diag.diagnosis_cd LIKE'C903%'
+GROUP by 1,2),
+
+-- Look at the Claim_line and Claim_Revenue_Line for the relevant HCPCS Codes. Get count of claims by patient by year
+Pt_Line_Items AS
+(
+SELECT patient_id, EXTRACT(YEAR FROM claim_end_dt) as YEAR, count(distinct claim_id) as n_line_claims
+from
+(SELECT hdr.patient_id, hdr.claim_id,hdr.claim_end_Dt
+FROM enriched_qe_staging.claim_header HDR
+INNER JOIN enriched_qe_staging.claim_revenue_line rev on hdr.claim_id = rev.claim_id
+where rev.hcpcs_cd = 'J9145'
+union ALL
+SELECT hdr.patient_id, hdr.claim_id,hdr.claim_end_dt
+FROM enriched_qe_staging.claim_header HDR
+INNER JOIN enriched_qe_staging.claim_line lne on hdr.claim_id = lne.claim_id
+where lne.hcpcs_cd = 'J9145'
+)
+WHERE EXTRACT(YEAR FROM claim_end_dt) IN(2017,2018,2019)
+GROUP by 1,2),
+
+-- Look at the RX Data for instances where Dara is listed with its NDC code. Get count of claims by patient by year
+Pt_Rx_Items AS
+(
+SELECT patient_id, EXTRACT(YEAR FROM fill_dt) AS YEAR, count(distinct claim_id) as n_rx_claims
+FROM enriched_qe_staging.rx_claim
+WHERE ndc_cd IN('57894050205','57894050220')
+AND EXTRACT(YEAR FROM fill_dt) in(2017,2018,2019)
+GROUP by 1,2)
+
+-- JOIN CTEs
+--select year,
+--COUNT (distinct (case when n_c9000_claims is not null then patient_id end)) as n_naive, count(distinct patient_id) as n_total_pts
+--from
+--(
+SELECT COALESCE(ptl.patient_id, ptrx.patient_id,dx.patient_id,MMDx.patient_id) patient_id, COALESCE(ptl.YEAR,ptrx.YEAR,dx.year, MMDx.year)year, ptl.n_line_claims, ptrx.n_rx_claims,dx.n_c9000_claims,MMDx.n_MM_claims,EXTRACT (YEAR FROM First_MM.First_MM_Diag) as MM_Diagnosis_Year,First_MM.First_MM_Diag,EXTRACT(YEAR FROM fd.First_dara) AS Dara_Initiation_Year,fd.First_dara,date_diff('day',fd.First_dara, First_MM.First_MM_Diag) as date_diff, ad.n_90123_claims, (COALESCE(ptl.n_line_claims,0) + COALESCE(ptrx.n_rx_claims,0)) AS Total_Combined_Rx_and_Claim_Line_Claims
+FROM
+Pt_Line_Items ptl
+FULL OUTER JOIN 
+Pt_Rx_Items ptrx ON ptl.patient_id = ptrx.patient_id and ptl.year = ptrx.year
+LEFT JOIN First_1L_MM_Diag First_MM 
+  on ptl.patient_id = first_mm.patient_id
+ LEFT JOIN First_Dara_Usage fd
+  on ptl.patient_id = fd.patient_id
+LEFT JOIN L1_Diag_Table Dx
+ON ptl.patient_id = dx.patient_id and ptl.year = dx.year
+LEFT JOIN All_MM_Diag_Table MMDx
+ON ptl.patient_id = MMDx.patient_id and ptl.year = MMDx.year
+left join all_Diag_Table ad 
+on ptl.patient_id = ad.patient_id and ptl.year = ad.year
+--group by 1 ;
